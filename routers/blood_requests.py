@@ -1,31 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from database import get_db
 from dependencies import get_current_user
 from models import BloodRequest, User
-from schemas.blood_request import (
-    BloodRequestCreate,
-    BloodRequestResponse,
-    BloodRequestUpdate
-)
+from schemas.blood_request import BloodRequestCreate,BloodRequestResponse,BloodRequestUpdate
+
+router = APIRouter(prefix="/blood-requests",tags=["Blood Requests"])
 
 
-router = APIRouter(
-    prefix="/blood-requests",
-    tags=["Blood Requests"]
-)
-
-
-@router.post(
-    "/",
-    response_model=BloodRequestResponse
-)
-def create_blood_request(
-    request_data: BloodRequestCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.post("/",response_model=BloodRequestResponse)
+def create_blood_request(request_data: BloodRequestCreate,current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
 
     new_request = BloodRequest(
         patient_name=request_data.patient_name,
@@ -47,10 +31,7 @@ def create_blood_request(
     return new_request
 
 
-@router.get(
-    "/",
-    response_model=list[BloodRequestResponse]
-)
+@router.get("/",response_model=list[BloodRequestResponse])
 def get_blood_requests(
     blood_group: str | None = None,
     location: str | None = None,
@@ -64,150 +45,67 @@ def get_blood_requests(
     query = db.query(BloodRequest)
 
     if blood_group:
-
-        query = query.filter(
-            BloodRequest.blood_group == blood_group
-        )
+        query = query.filter(BloodRequest.blood_group == blood_group)
 
     if location:
-
-        query = query.filter(
-            BloodRequest.location.ilike(
-                f"%{location}%"
-            )
-        )
+        query = query.filter(BloodRequest.location.ilike(f"%{location}%"))
 
     if status:
-
-        query = query.filter(
-            BloodRequest.status == status
-        )
+        query = query.filter(BloodRequest.status == status)
 
     if urgency:
-
-        query = query.filter(
-            BloodRequest.urgency == urgency
-        )
-
+        query = query.filter(BloodRequest.urgency == urgency)
     return query.offset(skip).limit(limit).all()
 
 
-@router.get(
-    "/me",
-    response_model=list[BloodRequestResponse]
-)
-def get_my_requests(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.get("/me",response_model=list[BloodRequestResponse])
+def get_my_requests(current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
 
-    return db.query(BloodRequest).filter(
-        BloodRequest.requested_by == current_user.id
-    ).all()
+    return db.query(BloodRequest).filter(BloodRequest.requested_by == current_user.id).all()
 
+@router.get("/{request_id}",response_model=BloodRequestResponse)
+def get_blood_request(request_id: int,db: Session = Depends(get_db)):
 
-@router.get(
-    "/{request_id}",
-    response_model=BloodRequestResponse
-)
-def get_blood_request(
-    request_id: int,
-    db: Session = Depends(get_db)
-):
-
-    request = db.query(BloodRequest).filter(
-        BloodRequest.id == request_id
-    ).first()
+    request = db.query(BloodRequest).filter(BloodRequest.id == request_id).first()
 
     if not request:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Blood request not found"
-        )
-
+        raise HTTPException(status_code=404,detail="Blood request not found")
     return request
 
 
-@router.put(
-    "/{request_id}",
-    response_model=BloodRequestResponse
-)
-def update_blood_request(
-    request_id: int,
-    request_data: BloodRequestUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.put("/{request_id}",response_model=BloodRequestResponse)
+def update_blood_request(request_id: int,request_data: BloodRequestUpdate,current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
 
-    request = db.query(BloodRequest).filter(
-        BloodRequest.id == request_id
-    ).first()
+    request = db.query(BloodRequest).filter(BloodRequest.id == request_id).first()
 
     if not request:
+        raise HTTPException(status_code=404,detail="Blood request not found")
 
-        raise HTTPException(
-            status_code=404,
-            detail="Blood request not found"
-        )
+    if (request.requested_by != current_user.id and current_user.role != "admin"):
 
-    if (
-        request.requested_by != current_user.id
-        and current_user.role != "admin"
-    ):
+        raise HTTPException(status_code=403,detail="You cannot update this request")
 
-        raise HTTPException(
-            status_code=403,
-            detail="You cannot update this request"
-        )
-
-    update_data = request_data.model_dump(
-        exclude_unset=True
-    )
+    update_data = request_data.model_dump(exclude_unset=True)
 
     for key, value in update_data.items():
-
         setattr(request, key, value)
-
     db.commit()
     db.refresh(request)
 
     return request
 
+@router.delete("/{request_id}")
+def delete_blood_request(request_id: int,current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
 
-@router.delete(
-    "/{request_id}"
-)
-def delete_blood_request(
-    request_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-
-    request = db.query(BloodRequest).filter(
-        BloodRequest.id == request_id
-    ).first()
-
+    request = db.query(BloodRequest).filter(BloodRequest.id == request_id).first()
     if not request:
+        raise HTTPException(status_code=404,detail="Blood request not found")
 
-        raise HTTPException(
-            status_code=404,
-            detail="Blood request not found"
-        )
+    if (request.requested_by != current_user.id and current_user.role != "admin"):
 
-    if (
-        request.requested_by != current_user.id
-        and current_user.role != "admin"
-    ):
-
-        raise HTTPException(
-            status_code=403,
-            detail="You cannot delete this request"
-        )
+        raise HTTPException(status_code=403,detail="You cannot delete this request")
 
     db.delete(request)
     db.commit()
 
-    return {
-        "message": "Blood request deleted successfully"
-    }
+    return {"message": "Blood request deleted successfully"}

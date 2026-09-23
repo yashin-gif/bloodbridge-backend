@@ -1,40 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from database import Base, engine
-
 import models
-
-from routers import (
-    admin,
-    auth,
-    blood_requests,
-    donations,
-    users
-)
-
-
-# =========================
-# Create Database Tables
-# =========================
+from routers import (admin, auth, blood_requests, donations, users)
 
 Base.metadata.create_all(bind=engine)
 
+app = FastAPI(title="BloodBridge API", description="Blood Donation & Emergency Assistance Platform", version="1.0.0")
 
-# =========================
-# FastAPI App
-# =========================
-
-app = FastAPI(
-    title="BloodBridge API",
-    description="Blood Donation & Emergency Assistance Platform",
-    version="1.0.0"
-)
-
-
-# =========================
-# CORS
-# =========================
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,37 +20,19 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-
-# =========================
-# Routers
-# =========================
-
 app.include_router(auth.router)
-
 app.include_router(users.router)
-
 app.include_router(blood_requests.router)
-
 app.include_router(donations.router)
-
 app.include_router(admin.router)
-
-
-# =========================
-# Root
-# =========================
 
 @app.get("/")
 def root():
 
-    return {
-        "message": "Welcome to BloodBridge API"
-    }
+    return {"message": "Welcome to BloodBridge API"}
 
 
 @app.get("/health")
 def health_check():
 
-    return {
-        "status": "healthy"
-    }
+    return {"status": "healthy"}
