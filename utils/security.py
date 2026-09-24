@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 SECRET_KEY = "bloodbridge-secret-key-change-this-later"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+PASSWORD_RESET_EXPIRE_MINUTES = 15
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -34,5 +35,30 @@ def decode_access_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
         return payload
+    except JWTError:
+        return None
+
+def create_password_reset_token(user_id: int):
+
+    expire = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_EXPIRE_MINUTES)
+
+    data = {
+        "user_id": user_id,
+        "purpose": "password_reset",
+        "exp": expire
+    }
+
+    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+
+def decode_password_reset_token(token: str):
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("purpose") != "password_reset":
+            return None
+
+        return payload
+
     except JWTError:
         return None

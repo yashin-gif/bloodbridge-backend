@@ -4,9 +4,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
-from schemas.auth import Token
+from schemas.auth import Token, ForgotPasswordRequest, ResetPasswordRequest
 from schemas.user import UserCreate, UserLogin, UserResponse
-from utils.security import ACCESS_TOKEN_EXPIRE_MINUTES,create_access_token,hash_password,verify_password
+from utils.security import ACCESS_TOKEN_EXPIRE_MINUTES,create_access_token,hash_password,verify_password,create_password_reset_token,decode_password_reset_token
 
 router = APIRouter(prefix="/auth",tags=["Authentication"])
 
@@ -63,3 +63,38 @@ def login(user_data: OAuth2PasswordRequestForm = Depends(),db: Session = Depends
     access_token = create_access_token(data={"user_id": user.id,"username": user.username,"role": user.role},expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
     return {"access_token": access_token,"token_type": "bearer"}
+
+
+@router.post("/forgot-password")
+def forgot_password(user_data: ForgotPasswordRequest,db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.email == user_data.email).first()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User with this email does not exist")
+
+    reset_token = create_password_reset_token(user.id)
+
+    return {"message": "Password reset token generated successfully","reset_token": reset_token}
+
+
+@router.post("/reset-password")
+def reset_password(user_data: ResetPasswordRequest,db: Session = Depends(get_db)):
+
+    payload = decode_password_reset_token(user_data.token)
+
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid or expired reset token")
+
+    user_id = payload.get("user_id")
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
+
+    user.password_hash = hash_password(user_data.new_password)
+
+    db.commit()
+
+    return {"message": "Password reset successfully"}
