@@ -52,7 +52,7 @@ def login(user_data: OAuth2PasswordRequestForm = Depends(),db: Session = Depends
     user = db.query(User).filter(User.username == user_data.username).first()
 
     if not user:
-        raise HTTPException(tatus_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username or password")
 
     if not verify_password(user_data.password,user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username or password")
