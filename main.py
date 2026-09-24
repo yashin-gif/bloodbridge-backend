@@ -39,20 +39,3 @@ def health_check():
 
     return {"status": "healthy"}
 
-@app.get("/setup-admin")
-def setup_admin():
-    from database import SessionLocal
-    from models import User
-
-    db = SessionLocal()
-
-    user = db.query(User).filter(User.id == 1).first()
-
-    if user:
-        user.role = "admin"
-        db.commit()
-        db.close()
-        return {"message": "User 1 is now admin"}
-
-    db.close()
-    return {"message": "User not found"}
