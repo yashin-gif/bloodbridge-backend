@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
@@ -33,16 +34,27 @@ def create_blood_request(request_data: BloodRequestCreate,current_user: User = D
 
 @router.get("/",response_model=list[BloodRequestResponse])
 def get_blood_requests(
+    search: str | None = None,
+    request_id: int | None = None,
     blood_group: str | None = None,
     location: str | None = None,
     status: str | None = None,
     urgency: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    sort: str = "newest",
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
 
     query = db.query(BloodRequest)
+
+    if search:
+        query = query.filter(BloodRequest.patient_name.ilike(f"%{search}%"))
+
+    if request_id is not None:
+        query = query.filter(BloodRequest.id == request_id)
 
     if blood_group:
         query = query.filter(BloodRequest.blood_group == blood_group)
@@ -55,6 +67,31 @@ def get_blood_requests(
 
     if urgency:
         query = query.filter(BloodRequest.urgency == urgency)
+
+    if start_date:
+        query = query.filter(BloodRequest.created_at >= start_date)
+
+    if end_date:
+        query = query.filter(BloodRequest.created_at <= end_date)
+
+    if sort == "newest":
+        query = query.order_by(BloodRequest.created_at.desc())
+
+    elif sort == "oldest":
+        query = query.order_by(BloodRequest.created_at.asc())
+
+    elif sort == "name_asc":
+        query = query.order_by(BloodRequest.patient_name.asc())
+
+    elif sort == "name_desc":
+        query = query.order_by(BloodRequest.patient_name.desc())
+
+    elif sort == "date_asc":
+        query = query.order_by(BloodRequest.required_date.asc())
+
+    elif sort == "date_desc":
+        query = query.order_by(BloodRequest.required_date.desc())
+
     return query.offset(skip).limit(limit).all()
 
 
@@ -62,6 +99,7 @@ def get_blood_requests(
 def get_my_requests(current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
 
     return db.query(BloodRequest).filter(BloodRequest.requested_by == current_user.id).all()
+
 
 @router.get("/{request_id}",response_model=BloodRequestResponse)
 def get_blood_request(request_id: int,db: Session = Depends(get_db)):
@@ -89,15 +127,18 @@ def update_blood_request(request_id: int,request_data: BloodRequestUpdate,curren
 
     for key, value in update_data.items():
         setattr(request, key, value)
+
     db.commit()
     db.refresh(request)
 
     return request
 
+
 @router.delete("/{request_id}")
 def delete_blood_request(request_id: int,current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
 
     request = db.query(BloodRequest).filter(BloodRequest.id == request_id).first()
+
     if not request:
         raise HTTPException(status_code=404,detail="Blood request not found")
 
